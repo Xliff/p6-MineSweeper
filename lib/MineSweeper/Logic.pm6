@@ -4,6 +4,10 @@ unit package MineSweeper::Logic;
 
 enum Tile-Type <Empty Mine>;
 
+class X::MineSweeper           is Exception      is export { }
+class X::MineSweeper::GameWon  is X::MineSweeper is export { }
+class X::MineSweeper::GameLost is X::MineSweeper is export { }
+
 class Tile {
   has Tile-Type $.type;
   has $.face is rw;
@@ -36,7 +40,7 @@ class Field {
     method open($y, $x) {
       return if @!grid[$y][$x].face.defined;
 
-      self.end-game("KaBoom") if @!grid[$y][$x].type ~~ Mine;
+      self.end-game(:lost) if @!grid[$y][$x].type ~~ Mine;
 
       my @neighbors = gather do
         take [ $y + .[0], $x + .[1] ]
@@ -53,17 +57,24 @@ class Field {
       if $mines == 0 {
         self.open(.[0], .[1]) for @neighbors;
       }
-      self.end-game("You won") if $!empty-spots == 0;
+      self.end-game(:won) if $!empty-spots == 0;
     }
 
-    method end-game(Str $msg ) {
+    method end-game(:$won = False, $lost =  False) {
+      die '$won and $false cannot be the same value'
+        unless $won ^^ $false;
+
       for ^$!height X ^$!width -> ($y, $x) {
         @!grid[$y][$x].face = '*' if @!grid[$y][$x].type ~~ Mine
       }
-      die $msg;
+      if $won {
+        X::MineSweeper::GameWon.new.throw;
+      } else {
+        X::MineSweeper::GameLost.new.throw;
+      }
     }
 
-    method mark ( $y, $x) {
+    method mark ($y, $x) {
       if !@!grid[$y][$x].face.defined {
         @!grid[$y][$x].face = "⚐";
         $!mine-spots-- if @!grid[$y][$x].type ~~ Mine;

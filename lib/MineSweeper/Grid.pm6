@@ -1,8 +1,10 @@
 use v6.c;
 
-use GTK::Button;
+use GTK::Compat::Types;
+
 use GTK::CSSProvider;
 use GTK::Grid;
+use GTK::ToggleButton;
 use GTK::Window;
 
 use MineSweeper::Logic;
@@ -25,8 +27,9 @@ method new(MineSweeper::Logic $l) {
   $!grid = GTK::Grid.new;
   $!win.add($!grid);
   for ^$height X ^$width -> ($y, $x) {
-    my $b = @!grid[$y][$x] = GTK::Button.new;
+    my $b = @!grid[$y][$x] = GTK::ToggleButton.new;
     $b.set_size_request(20, 20);
+    $b.add_events(GDK_BUTTON_PRESS_MASK);
     $b.button-press-event.tap(-> *@a { self.do_click($x, $y, @a) });
     $!grid.attach($x, $y, 1, 1);
   }
@@ -34,12 +37,28 @@ method new(MineSweeper::Logic $l) {
 
 method rescan {
   # Check logic grid to see what's been open and mark accordingly
+  for ^$!logic.height X ^$!logic.width -> ($y, $x) {
+    with $!logic.grid[$y, $x).face {
+      my $face = $_;
+      with @!grid[$y][$x] && $face {
+        if .label.defined.not {
+          .label = $face without .label;
+          if .relief != GTK_RELIEF_NONE {
+            when $face gte '3' { .get_style_context.add_class('.red')    }
+            when $face  eq '2' { .get_style_context.add_class('.yellow') }
+          }
+          .active = .sensitive = False;
+          .relief = GTK_RELIEF_NONE;
+        }
+      }
+    }
+  }
 }
 
 method mark($x, $y) {
   $l.mark($y, $x);
   my $cl = $!grid.get_widget_at($x, $y);
-  $cl.label = $cl.label eq '⚑' ?? '' !! '⚑';
+  $cl.label = $cl.label eq '⚑' ?? ' ' !! '⚑';
 }
 
 method open($x, $y) {
@@ -51,8 +70,11 @@ method do_button_click($x, $y, @ed) {
   if @ed[1].type == GDK_BUTTON_PRESS {
     given @ed[1] {
       # Find correct enum
-      when .button == 3 { self.mark($x, $y) }
-      when .button == 1 { self.open($x, $y) }
+      when .button == 3 { self.mark($y, $x) }
+      when .button == 1 { self.open($y, $x) }
     }
+    @ed[* - 1].r = 1
+  } else {
+    @ed[* - 1].r = 0;
   }
 }
